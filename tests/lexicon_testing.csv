@@ -1,0 +1,3 @@
+term,category,plural
+test_word_one,Test_Cat_One,TRUE
+test_word_two,Test_Cat_Two,FALSE
