@@ -11,8 +11,11 @@ class MaRMAT:
         self.metadata_df = None
         self.columns = []  # List of all available columns in the metadata
         self.categories = []  # List of all available categories in the lexicon
+        self.selected_categories = []  # List of all available categories in the lexicon
         self.selected_columns = []  # List of columns selected for matching
         self.id_col = None  # Identifier column used to uniquely identify rows
+        self.export_cols = []
+        self.matches_df = None
 
     def load_lexicon(self, file_path):
         """Load the lexicon file.
@@ -22,7 +25,8 @@ class MaRMAT:
 
         """
         try:
-            self.lexicon_df = pd.read_csv(file_path, encoding='latin1')
+            self.lexicon_df = pd.read_csv(file_path, encoding='utf8')
+            self.categories = self.lexicon_df["category"].unique().tolist()
             print("Lexicon loaded successfully.")
         except Exception as e:
             print(f"An error occurred while loading lexicon: {e}")
@@ -35,7 +39,8 @@ class MaRMAT:
 
         """
         try:
-            self.metadata_df = pd.read_csv(file_path, encoding='latin1')
+            self.metadata_df = pd.read_csv(file_path, encoding='utf8')
+            self.columns = self.metadata_df.columns.to_list()
             print("Metadata loaded successfully.")
         except Exception as e:
             print(f"An error occurred while loading metadata: {e}")
@@ -65,28 +70,31 @@ class MaRMAT:
         categories (list of str): List of category names in the lexicon.
 
         """
-        self.categories = categories
+        self.selected_categories = categories
 
-    def perform_matching(self, output_file):
-        """Perform matching between selected columns and categories and save results to a CSV file.
+    def select_export_cols(self, export_cols):
+        """Select categories from the lexicon for matching.
 
         Parameters:
-        output_file (str): Path to the output CSV file to save matching results.
+        export_cols (list of str): List of column names in metadata_df to export.
 
         """
+        self.export_cols = export_cols
+
+    def perform_matching(self):
+        """Perform matching between selected columns and categories and save results to a CSV file.
+        """
         if self.lexicon_df is None or self.metadata_df is None:
-            print("Please load lexicon and metadata files first.")
-            return
+            raise ValueError("Please load lexicon and metadata files first.")
+        elif set(self.selected_categories) - set(self.categories):
+            missing_cats = set(self.selected_categories) - set(self.categories)
+            raise ValueError(f"{missing_cats} not in lexicon categories")
+        elif set(self.selected_columns) - set(self.columns):
+            missing_cols = set(self.selected_columns) - set(self.columns)
+            raise ValueError(f"{missing_cols} not in metadata columns")
 
-        matches_df = self.find_matches(self.selected_columns, self.categories)
-        matches_df.sort_values(by=["Category", "Term"], inplace=True)
-
-        """Write results to CSV"""
-        try:
-            matches_df.to_csv(output_file, index=False)
-            print(f"Results saved to {output_file}")
-        except Exception as e:
-            print(f"An error occurred while saving results: {e}")
+        self.matches_df = self.find_matches(self.selected_columns, self.selected_categories)
+        self.matches_df.sort_values(by=["Category", "Term"], inplace=True)
 
     def find_matches(self, selected_columns, selected_categories):
         """Find matches between metadata and lexicon based on selected columns and categories.
@@ -100,30 +108,35 @@ class MaRMAT:
 
         """
         lexicon_df = self.lexicon_df[self.lexicon_df['category'].isin(selected_categories)]
-        cumsum = lexicon_df.groupby(by="category")["category"].count().cumsum().shift(1)
+        count = lexicon_df.groupby(by="category", sort=False)["category"].count()
+        cumsum = lexicon_df.groupby(by="category", sort=False)["category"].count().cumsum().shift(1)
         cumsum.iloc[0] = 0
         cumsum = cumsum.astype(int)
 
         combined_dfs = []
         context_window = 30  # n_chars
 
-        for i, (term, category) in enumerate(zip(lexicon_df['term'], lexicon_df['category'])):
-            print(f"Processing {category} term {i + 1 - cumsum.loc[category]} of {len(lexicon_df.query('category == @category'))}")
+        for i, (term, category, plural) in enumerate(zip(lexicon_df['term'], lexicon_df['category'], lexicon_df['plural'])):
+            print(f"Processing {category} term {i + 1 - cumsum.loc[category]} of {count.loc[category]}")
             term_col_dfs = []
-            bounded_term = re.compile(r"(?<=\b)" + f"({term})" + r"(?=\b)", flags=re.IGNORECASE)  # make term a group for .extract()
+            if plural:
+                bounded_term = re.compile(r"(?<=\b)" + f"({term}s?)" + r"(?=\b)", flags=re.IGNORECASE)  # make term a group for .split()
+            else:
+                bounded_term = re.compile(r"(?<=\b)" + f"({term})" + r"(?=\b)", flags=re.IGNORECASE)  # make term a group for .split()
 
             for col in selected_columns:
-                matches = self.metadata_df[self.metadata_df[col].str.contains(term, regex=False, na=False, case=False)]
-                if len(matches) > 0:
-                    matches = matches.copy()
+                unbounded_matches = self.metadata_df[self.metadata_df[col].str.contains(term, regex=False, na=False, case=False)]
+                if len(unbounded_matches) > 0:
                     # create elipsis padded context
-                    split = matches[col].str.split(bounded_term, n=1, regex=True, expand=True).dropna()
+                    split = unbounded_matches[col].str.split(bounded_term, n=1, regex=True, expand=True).dropna()
                     if split.shape[1] == 1:
                         continue
                     start = split[0].str.slice(start=-context_window)
                     end = split[2].str.slice(stop=context_window)
                     start_pad = start.where(start.transform(len) != context_window, "..." + start)
                     end_pad = end.where(end.transform(len) != context_window, end + "...")
+
+                    matches = unbounded_matches.loc[split.index, [self.id_col, col] + self.export_cols]
                     matches["Context (First Occurence)"] = start_pad + split[1] + end_pad
 
                     # add all other cols
@@ -132,12 +145,26 @@ class MaRMAT:
                     matches["Field"] = col
                     matches["Occurences"] = matches[col].str.count(bounded_term)
 
-                    term_col_dfs.append(matches.loc[:, (self.id_col, 'Term', 'Category', 'Context (First Occurence)', 'Field', 'Occurences')])
+                    standard_cols = [self.id_col, 'Term', 'Category', 'Context (First Occurence)', 'Field', 'Occurences']
+                    term_col_dfs.append(matches.loc[:, standard_cols + self.export_cols])
 
             if term_col_dfs:
                 combined_dfs.append(pd.concat(term_col_dfs, axis=0))
 
-        return pd.concat(combined_dfs, axis=0)
+        return pd.concat(combined_dfs, axis=0).reset_index(drop=True)
+
+    def export_matches(self, output_file):
+        """
+        Write results to CSV
+        Parameters:
+        output_file (str): Path to the output CSV file to save matching results.
+        """
+        try:
+            self.matches_df.to_csv(output_file, index=False, encoding="utf8")
+            self.matches_df.to_excel(output_file.replace(".csv", ".xlsx"), index=False)
+            print(f"Results saved to {output_file}")
+        except Exception as e:
+            print(f"An error occurred while saving results: {e}")
 
 
 if __name__ == "__main__":
@@ -162,4 +189,5 @@ if __name__ == "__main__":
     tool.select_categories(["RaceTerms"])  # Input the categories from the lexicon that you want to search for.
 
     print("\n6. Perform matching and view results:")
-    tool.perform_matching(output_file)
+    tool.perform_matching()
+    tool.export_matches(output_file)
