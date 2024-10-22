@@ -1,6 +1,8 @@
 # Data
 /data/
 !/data/external
+/reports/figures/aleph_term_counts
+/reports/figures/iams_term_counts
 
 # Mac OS-specific storage files
 .DS_Store
