@@ -1,6 +1,6 @@
-term,category
-aborigines,RaceTerms
-indian,RaceTerms
-evacuees,JapaneseincarcerationTerm
-relocation center,JapaneseincarcerationTerm
+term,category,plural
+aborigines,RaceTerms,False
+indian,RaceTerms,True
+evacuees,JapaneseincarcerationTerm,False
+relocation center,JapaneseincarcerationTerm,True
 
