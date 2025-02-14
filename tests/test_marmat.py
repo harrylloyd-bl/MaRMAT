@@ -11,7 +11,7 @@ def test_init_attrs():
     assert tool.categories == []
     assert tool.selected_columns == []
     assert tool.selected_categories == []
-    assert tool.identifier_column is None
+    assert tool.id_col is None
 
 
 class TestMaRMAT:
@@ -32,23 +32,25 @@ class TestMaRMAT:
 
     def test_attrs(self, tool):
         assert tool.columns == self.cols
-        assert tool.identifier_column == "id"
+        assert tool.id_col == "id"
         assert tool.categories == ["RaceTerms", "JapaneseincarcerationTerm"]
         assert tool.selected_columns == ["title"]
         assert tool.selected_categories == ["RaceTerms", "JapaneseincarcerationTerm"]
+        assert tool.lexicon_df.dtypes["plural"] == bool
 
     def test_find_matches(self, tool, capsys):
-        standard_cols = [tool.identifier_column, "Term", "Category", "Context", "Field", "Occurences"]
+        standard_cols = [tool.id_col, "Term", "Category", "Context", "Field", "Occurences"]
 
         one_cat_df = tool.find_matches(selected_columns=["title"], selected_categories=["RaceTerms"])
         captured = capsys.readouterr()
         assert captured.out == "Processing RaceTerms term 1 of 2\nProcessing RaceTerms term 2 of 2\n"
-        assert one_cat_df.shape == (3, 6)
-        assert one_cat_df["id"].to_list() == [337805, 1498946, 1302623]
+        assert one_cat_df.shape == (4, 6)
+        assert one_cat_df["id"].to_list() == [337805, 1533946, 1498946, 1302623]
         assert one_cat_df.loc[0, "Field"] == "title"
         assert one_cat_df.loc[0, "Context"] == "Aborigines of Taiwan [001]"
-        assert one_cat_df.loc[1, "Context"] == "Spanish at Indian pueblo"
-        assert one_cat_df.loc[2, "Context"] == "Basalt-capped mesa on Dolores (Triassic), 6± miles south of Beddehoche (Indian Wells), Ariz., 1909 (photo G-67)"
+        assert one_cat_df.loc[1, "Context"] == "Busts of Ute Indians [1]"
+        assert one_cat_df.loc[2, "Context"] == "Spanish at Indian pueblo"
+        assert one_cat_df.loc[3, "Context"] == "Basalt-capped mesa on Dolores (Triassic), 6± miles south of Beddehoche (Indian Wells), Ariz., 1909 (photo G-67)"
         assert one_cat_df.columns.to_list() == standard_cols
 
         two_cat_df = tool.find_matches(selected_columns=["title"], selected_categories=["RaceTerms", "JapaneseincarcerationTerm"])
@@ -56,11 +58,12 @@ class TestMaRMAT:
         assert captured.out == "Processing RaceTerms term 1 of 2\nProcessing RaceTerms term 2 of 2\n" \
                                "Processing JapaneseincarcerationTerm term 1 of 2\n" \
                                "Processing JapaneseincarcerationTerm term 2 of 2\n"
-        assert two_cat_df.shape == (6, 6)
-        assert two_cat_df["id"].to_list() == [337805, 1498946, 1302623, 941713, 941496, 941536]
+        assert two_cat_df.shape == (7, 6)
+        assert two_cat_df["id"].to_list() == [337805, 1533946, 1498946, 1302623, 941713, 941496, 941536]
         assert two_cat_df.loc[0, "Context"] == "Aborigines of Taiwan [001]"
-        assert two_cat_df.loc[4, "Context"] == "Evacuees cleaning vegetables in the packing shed."
-        assert two_cat_df.loc[5, "Context"] == "Evacuees harvesting potatoes at Tule Lake. [5]"
+        assert two_cat_df.loc[1, "Context"] == "Busts of Ute Indians [1]"
+        assert two_cat_df.loc[5, "Context"] == "Evacuees cleaning vegetables in the packing shed."
+        assert two_cat_df.loc[6, "Context"] == "Evacuees harvesting potatoes at Tule Lake. [5]"
         assert two_cat_df.columns.to_list() == standard_cols
 
         two_cat_two_col_df = tool.find_matches(selected_columns=["title", "description"], selected_categories=["RaceTerms", "JapaneseincarcerationTerm"])
@@ -68,7 +71,7 @@ class TestMaRMAT:
         assert captured.out == "Processing RaceTerms term 1 of 2\nProcessing RaceTerms term 2 of 2\n" \
                                "Processing JapaneseincarcerationTerm term 1 of 2\n" \
                                "Processing JapaneseincarcerationTerm term 2 of 2\n"
-        assert two_cat_two_col_df.shape == (17, 6)
+        assert two_cat_two_col_df.shape == (20, 6)
         assert two_cat_two_col_df["id"].to_list() == [337805, 1498946, 1302623, 1533946, 962277, 1498946,
                                                       1302623,1396777, 941713, 941496, 941536, 941713, 941496,
                                                       941536, 941713, 941496, 941536]
@@ -80,12 +83,13 @@ class TestMaRMAT:
     def test_perform_matching(self, tool, tmp_path):
         blank_tool = AuditTool()
         with pytest.raises(ValueError):  # neither metadata nor lexicon
-            blank_tool.perform_matching(tmp_path)
+            blank_tool.perform_matching()
 
         with pytest.raises(ValueError):  # lexicon but no metadata
             blank_tool.load_lexicon("tests/example-lexicon-reparative-metadata.csv")
-            blank_tool.perform_matching(tmp_path)
+            blank_tool.perform_matching()
 
-        tool.perform_matching(tmp_path / "test_output.csv")
+        tool.perform_matching()
+        tool.export_matches(tmp_path / "test_output.csv")
         check_df = read_csv(tmp_path / "test_output.csv")
-        assert check_df.shape == (6, 6)
+        assert check_df.shape == (7, 6)
