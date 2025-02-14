@@ -27,6 +27,8 @@ class AuditTool:
         """
         try:
             self.lexicon_df = pd.read_csv(file_path, encoding='utf8')
+            if "plural" in self.lexicon_df.columns and self.lexicon_df.dtypes["plural"] != bool:
+                raise TypeError(f"Plural dtype is {self.lexicon_df.dtypes['plural']} not bool")
             self.categories = self.lexicon_df["category"].unique().tolist()
             print("Lexicon loaded successfully.")
         except Exception as e:
@@ -102,7 +104,8 @@ class AuditTool:
             raise ValueError("Please load lexicon and metadata files first.")
 
         self.matches_df = self.find_matches(self.selected_columns, self.selected_categories)
-        self.matches_df.sort_values(by=["Category", "Term"], inplace=True)
+        self.matches_df.sort_values(by=["Category", "Term", self.id_col], inplace=True)
+        return None
 
     def find_matches(self, selected_columns, selected_categories):
         """Find matches between metadata and lexicon based on selected columns and categories.
@@ -151,7 +154,8 @@ class AuditTool:
             if term_col_dfs:
                 combined_dfs.append(pd.concat(term_col_dfs, axis=0))
 
-        return pd.concat(combined_dfs, axis=0).reset_index(drop=True)
+        matches_df = pd.concat(combined_dfs, axis=0).reset_index(drop=True)
+        return matches_df
 
     def export_matches(self, output_file):
         """
@@ -161,6 +165,7 @@ class AuditTool:
         """
         try:
             self.matches_df.to_csv(output_file, index=False, encoding="utf8")
+            output_file = str(output_file)
             self.matches_df.to_excel(output_file.replace(".csv", ".xlsx"), index=False)
             print(f"Results saved to {output_file}")
         except Exception as e:
