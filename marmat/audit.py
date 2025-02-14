@@ -34,7 +34,7 @@ class AuditTool:
         except Exception as e:
             raise Exception(f"An error occurred while loading lexicon: {e}")
 
-    def load_metadata(self, file_path):
+    def load_metadata(self, file_path, id_col, allow_duplicate_ids=False):
         """Load the metadata file.
 
         Parameters:
@@ -42,11 +42,20 @@ class AuditTool:
 
         """
         try:
-            self.metadata_df = pd.read_csv(file_path, encoding='utf8')
-            self.columns = self.metadata_df.columns.to_list()
-            print("Metadata loaded successfully.")
+            df = pd.read_csv(file_path, encoding='utf8')
         except Exception as e:
             raise Exception(f"An error occurred while loading metadata: {e}")
+
+        if not allow_duplicate_ids and not df[id_col].is_unique:
+            raise ValueError(
+                f"{id_col} in Metadata is not unique. Make unique or set allow_duplicate_ids=True. "
+                f"This will lead to duplicate results in ouput.")
+
+        self.metadata_df = df
+        self.columns = self.metadata_df.columns.to_list()
+        self.id_col = id_col
+        print("Metadata loaded successfully.")
+
 
     def select_columns(self, columns):
         """Select columns from the metadata for matching.
@@ -105,6 +114,10 @@ class AuditTool:
 
         self.matches_df = self.find_matches(self.selected_columns, self.selected_categories)
         self.matches_df.sort_values(by=["Category", "Term", self.id_col], inplace=True)
+        duplicate_check = self.matches_df.groupby(by=["Category", "Term", "Field", self.id_col])["Occurences"].count()
+        if duplicate_check.max() > 1:
+            n = duplicate_check.sum() - duplicate_check.shape[0]
+            warnings.warn(f"{n} duplicate rows in output, check uniqueness of ID field in input.")
         return None
 
     def find_matches(self, selected_columns, selected_categories):
