@@ -16,7 +16,7 @@ def test_init_attrs():
 
 class TestMaRMAT:
     cols = [
-        "id", "title", "description", "creator", "date",
+        "System No [001]", "title", "description", "creator", "date",
         "collection name", "subjects", "spatial coverage"
     ]
 
@@ -24,17 +24,17 @@ class TestMaRMAT:
     def tool(self):
         tool = AuditTool()
         tool.select_columns(["title"])  # Input the name(s) of the metadata column(s) you want to analyze.
-        tool.select_identifier_column("id")
+        tool.select_identifier_column("System No [001]")
         tool.select_categories(["RaceTerms", "JapaneseincarcerationTerm"])
         with pytest.raises(ValueError):
-            tool.load_metadata("tests/example-input-metadata.csv", id_col="id")
-        tool.load_metadata("tests/example-input-metadata.csv", id_col="id", allow_duplicate_ids=True)
+            tool.load_metadata("tests/example-input-metadata.csv", id_col="System No [001]")
+        tool.load_metadata("tests/example-input-metadata.csv", id_col="System No [001]", allow_duplicate_ids=True)
         tool.load_lexicon("tests/example-lexicon.csv")
         return tool
 
     def test_attrs(self, tool):
         assert tool.columns == self.cols
-        assert tool.id_col == "id"
+        assert tool.id_col == "System No [001]"
         assert tool.categories == ["RaceTerms", "JapaneseincarcerationTerm"]
         assert tool.selected_columns == ["title"]
         assert tool.selected_categories == ["RaceTerms", "JapaneseincarcerationTerm"]
@@ -47,7 +47,7 @@ class TestMaRMAT:
         captured = capsys.readouterr()
         assert captured.out == f"Processing term category: {cat[0]}\n"
         assert one_cat_df.shape == (4, 6)
-        assert one_cat_df["id"].to_list() == [337805, 1533946, 1498946, 1302623]
+        assert one_cat_df["System No [001]"].to_list() == [337805, 1533946, 1498946, 1302623]
         assert one_cat_df.loc[0, "Field"] == "title"
         assert one_cat_df.loc[0, "Context"] == "Aborigines of Taiwan [001]"
         assert one_cat_df.loc[1, "Context"] == "Busts of Ute Indians [1]"
@@ -61,7 +61,7 @@ class TestMaRMAT:
         assert captured.out == f"Processing term category: {cats[0]}\n" \
                                f"Processing term category: {cats[1]}\n"
         assert two_cat_df.shape == (7, 6)
-        assert two_cat_df["id"].to_list() == [337805, 1533946, 1498946, 1302623, 941713, 941496, 941536]
+        assert two_cat_df["System No [001]"].to_list() == [337805, 1533946, 1498946, 1302623, 941713, 941496, 941536]
         assert two_cat_df.loc[0, "Context"] == "Aborigines of Taiwan [001]"
         assert two_cat_df.loc[1, "Context"] == "Busts of Ute Indians [1]"
         assert two_cat_df.loc[5, "Context"] == "Evacuees cleaning vegetables in the packing shed."
@@ -73,7 +73,7 @@ class TestMaRMAT:
         assert captured.out == f"Processing term category: {cats[0]}\n" \
                                f"Processing term category: {cats[1]}\n"
         assert two_cat_two_col_df.shape == (20, 6)
-        assert two_cat_two_col_df["id"].to_list() == [337805, 1533946, 1498946, 1302623, 1533946,  962277, 1498946,  995167,
+        assert two_cat_two_col_df["System No [001]"].to_list() == [337805, 1533946, 1498946, 1302623, 1533946,  962277, 1498946,  995167,
                                                       1302623, 995167, 1396777,  941713,  941496,  941536, 941713,  941496,
                                                       941536,  941713, 941496,  941536]
 
@@ -87,7 +87,7 @@ class TestMaRMAT:
                                              selected_categories=cats)
 
         assert no_duplicates_df.shape == (19,6)
-        tool.load_metadata("tests/example-input-metadata.csv", id_col="id", allow_duplicate_ids=True)
+        tool.load_metadata("tests/example-input-metadata.csv", id_col="System No [001]", allow_duplicate_ids=True)
         assert tool.metadata_df.shape == (39, 8)
 
     def test_perform_matching(self, tool, tmp_path):

@@ -1,3 +1,4 @@
+from collections import defaultdict
 import re
 import warnings
 import pandas as pd
@@ -35,6 +36,9 @@ class AuditTool:
         except Exception as e:
             raise Exception(f"An error occurred while loading lexicon: {e}")
 
+    def default_str(self):
+        return str
+
     def load_metadata(self, file_path, id_col, allow_duplicate_ids=False):
         """Load the metadata file.
 
@@ -43,7 +47,9 @@ class AuditTool:
 
         """
         try:
-            df = pd.read_csv(file_path, encoding='utf8')
+            dtypes = defaultdict(self.default_str)
+            dtypes["System No [001]"] = pd.Int64Dtype()
+            df = pd.read_csv(file_path, encoding='utf8', dtype=dtypes)
         except Exception as e:
             raise Exception(f"An error occurred while loading metadata: {e}")
 
