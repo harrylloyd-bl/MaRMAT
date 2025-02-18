@@ -1,6 +1,7 @@
 import re
 import warnings
 import pandas as pd
+from tqdm import tqdm
 
 
 class AuditTool:
@@ -131,41 +132,42 @@ class AuditTool:
         list of tuple: List of tuples containing matched results (Identifier, Term, Category, Column).
 
         """
-        lexicon_df = self.lexicon_df[self.lexicon_df['category'].isin(selected_categories)]
-
-        count = lexicon_df.groupby(by="category", sort=False)["category"].count()
-        cumsum = lexicon_df.groupby(by="category", sort=False)["category"].count().cumsum().shift(1)
-        cumsum.iloc[0] = 0
-        cumsum = cumsum.astype(int)
+        lexicon_df = self.lexicon_df[self.lexicon_df['category'].isin(selected_categories)].copy()
+        lexicon_df.sort_values(by="category",  # sort lexicon to same order as selected_categories
+                               key=lambda x: x.map({k: i for i, k in enumerate(selected_categories)}),
+                               inplace=True)
 
         combined_dfs = []
-        for i, (term, category, plural) in enumerate(zip(lexicon_df['term'], lexicon_df['category'], lexicon_df['plural'])):
-            print(f"Processing {category} term {i + 1 - cumsum.loc[category]} of {count.loc[category]}")
-            term_col_dfs = []
-            if plural:
-                bounded_term = re.compile(r"(?<=\b)" + f"({term}s?)" + r"(?=\b)", flags=re.IGNORECASE)  # make term a group for .split()
-            else:
-                bounded_term = re.compile(r"(?<=\b)" + f"({term})" + r"(?=\b)", flags=re.IGNORECASE)  # make term a group for .split()
 
-            for col in selected_columns:
-                raw_matches = self.metadata_df[self.metadata_df[col].str.contains(term, regex=False, na=False, case=False)]
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    matches = raw_matches[raw_matches[col].str.contains(bounded_term, regex=True, na=False)].copy()
-                if len(matches) > 0:
-                    matches.rename(columns={col: "Context"}, inplace=True)
+        for category, grp in lexicon_df.groupby(by="category", sort=False):
+            print(f"Processing term category: {category}")
+            for _, (term, _, plural) in tqdm(grp.iterrows(), total=len(grp)):
+                # print(f"Processing {category} term {i + 1 - cumsum.loc[category]} of {count.loc[category]}")
+                term_col_dfs = []
+                if plural:
+                    bounded_term = re.compile(r"(?<=\b)" + f"({term}s?)" + r"(?=\b)", flags=re.IGNORECASE)  # make term a group for .split()
+                else:
+                    bounded_term = re.compile(r"(?<=\b)" + f"({term})" + r"(?=\b)", flags=re.IGNORECASE)  # make term a group for .split()
 
-                    # add all other cols
-                    matches["Term"] = term
-                    matches["Category"] = category
-                    matches["Field"] = col
-                    matches["Occurences"] = matches["Context"].str.count(bounded_term)
+                for col in selected_columns:
+                    raw_matches = self.metadata_df[self.metadata_df[col].str.contains(term, regex=False, na=False, case=False)]
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        matches = raw_matches[raw_matches[col].str.contains(bounded_term, regex=True, na=False)].copy()
+                    if len(matches) > 0:
+                        matches.rename(columns={col: "Context"}, inplace=True)
 
-                    standard_cols = [self.id_col, 'Term', 'Category', 'Context', 'Field', 'Occurences']
-                    term_col_dfs.append(matches.loc[:, standard_cols + self.export_cols])
+                        # add all other cols
+                        matches["Term"] = term
+                        matches["Category"] = category
+                        matches["Field"] = col
+                        matches["Occurences"] = matches["Context"].str.count(bounded_term)
 
-            if term_col_dfs:
-                combined_dfs.append(pd.concat(term_col_dfs, axis=0))
+                        standard_cols = [self.id_col, 'Term', 'Category', 'Context', 'Field', 'Occurences']
+                        term_col_dfs.append(matches.loc[:, standard_cols + self.export_cols])
+
+                if term_col_dfs:
+                    combined_dfs.append(pd.concat(term_col_dfs, axis=0))
 
         matches_df = pd.concat(combined_dfs, axis=0).reset_index(drop=True)
         return matches_df

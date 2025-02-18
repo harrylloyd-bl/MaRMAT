@@ -29,7 +29,7 @@ class TestMaRMAT:
         with pytest.raises(ValueError):
             tool.load_metadata("tests/example-input-metadata.csv", id_col="id")
         tool.load_metadata("tests/example-input-metadata.csv", id_col="id", allow_duplicate_ids=True)
-        tool.load_lexicon("tests/example-lexicon-reparative-metadata.csv")
+        tool.load_lexicon("tests/example-lexicon.csv")
         return tool
 
     def test_attrs(self, tool):
@@ -42,10 +42,10 @@ class TestMaRMAT:
 
     def test_find_matches(self, tool, capsys):
         standard_cols = [tool.id_col, "Term", "Category", "Context", "Field", "Occurences"]
-
-        one_cat_df = tool.find_matches(selected_columns=["title"], selected_categories=["RaceTerms"])
+        cat = ["RaceTerms"]
+        one_cat_df = tool.find_matches(selected_columns=["title"], selected_categories=cat)
         captured = capsys.readouterr()
-        assert captured.out == "Processing RaceTerms term 1 of 2\nProcessing RaceTerms term 2 of 2\n"
+        assert captured.out == f"Processing term category: {cat[0]}\n"
         assert one_cat_df.shape == (4, 6)
         assert one_cat_df["id"].to_list() == [337805, 1533946, 1498946, 1302623]
         assert one_cat_df.loc[0, "Field"] == "title"
@@ -55,12 +55,11 @@ class TestMaRMAT:
         assert one_cat_df.loc[3, "Context"] == "Basalt-capped mesa on Dolores (Triassic), 6± miles south of Beddehoche (Indian Wells), Ariz., 1909 (photo G-67)"
         assert one_cat_df.columns.to_list() == standard_cols
 
-        two_cat_df = tool.find_matches(selected_columns=["title"],
-                                       selected_categories=["RaceTerms", "JapaneseincarcerationTerm"])
+        cats = ["RaceTerms", "JapaneseincarcerationTerm"]
+        two_cat_df = tool.find_matches(selected_columns=["title"], selected_categories=cats)
         captured = capsys.readouterr()
-        assert captured.out == "Processing RaceTerms term 1 of 2\nProcessing RaceTerms term 2 of 2\n" \
-                               "Processing JapaneseincarcerationTerm term 1 of 2\n" \
-                               "Processing JapaneseincarcerationTerm term 2 of 2\n"
+        assert captured.out == f"Processing term category: {cats[0]}\n" \
+                               f"Processing term category: {cats[1]}\n"
         assert two_cat_df.shape == (7, 6)
         assert two_cat_df["id"].to_list() == [337805, 1533946, 1498946, 1302623, 941713, 941496, 941536]
         assert two_cat_df.loc[0, "Context"] == "Aborigines of Taiwan [001]"
@@ -69,12 +68,10 @@ class TestMaRMAT:
         assert two_cat_df.loc[6, "Context"] == "Evacuees harvesting potatoes at Tule Lake. [5]"
         assert two_cat_df.columns.to_list() == standard_cols
 
-        two_cat_two_col_df = tool.find_matches(selected_columns=["title", "description"],
-                                               selected_categories=["RaceTerms", "JapaneseincarcerationTerm"])
+        two_cat_two_col_df = tool.find_matches(selected_columns=["title", "description"], selected_categories=cats)
         captured = capsys.readouterr()
-        assert captured.out == "Processing RaceTerms term 1 of 2\nProcessing RaceTerms term 2 of 2\n" \
-                               "Processing JapaneseincarcerationTerm term 1 of 2\n" \
-                               "Processing JapaneseincarcerationTerm term 2 of 2\n"
+        assert captured.out == f"Processing term category: {cats[0]}\n" \
+                               f"Processing term category: {cats[1]}\n"
         assert two_cat_two_col_df.shape == (20, 6)
         assert two_cat_two_col_df["id"].to_list() == [337805, 1533946, 1498946, 1302623, 1533946,  962277, 1498946,  995167,
                                                       1302623, 995167, 1396777,  941713,  941496,  941536, 941713,  941496,
@@ -87,7 +84,7 @@ class TestMaRMAT:
 
         tool.metadata_df = tool.metadata_df.drop_duplicates(subset=tool.id_col)
         no_duplicates_df = tool.find_matches(selected_columns=["title", "description"],
-                                             selected_categories=["RaceTerms", "JapaneseincarcerationTerm"])
+                                             selected_categories=cats)
 
         assert no_duplicates_df.shape == (19,6)
         tool.load_metadata("tests/example-input-metadata.csv", id_col="id", allow_duplicate_ids=True)
@@ -99,7 +96,7 @@ class TestMaRMAT:
             blank_tool.perform_matching()
 
         with pytest.raises(ValueError):  # lexicon but no metadata
-            blank_tool.load_lexicon("tests/example-lexicon-reparative-metadata.csv")
+            blank_tool.load_lexicon("tests/example-lexicon.csv")
             blank_tool.perform_matching()
 
         tool.select_columns(["title", "description"])
