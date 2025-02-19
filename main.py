@@ -45,6 +45,7 @@ if __name__ == "__main__":
             output_file = os.path.join(PROCESSED_PATH, f"{f}_matches.csv")  # Input the file path where you want to save your matches here.
             tool.perform_matching()
             tool.export_matches(output_file)
+        print("Aleph files audit complete")
 
     #IAMS
     if IAMS:
@@ -62,3 +63,5 @@ if __name__ == "__main__":
             output_file = os.path.join(PROCESSED_PATH, f"{f}_matches.csv")  # Input the file path where you want to save your matches here.
             tool.perform_matching()
             tool.export_matches(output_file)
+
+        print("IAMS files audit complete")

@@ -32,7 +32,6 @@ class AuditTool:
             if "plural" in self.lexicon_df.columns and self.lexicon_df.dtypes["plural"] != bool:
                 raise TypeError(f"Plural dtype is {self.lexicon_df.dtypes['plural']} not bool")
             self.categories = self.lexicon_df["category"].unique().tolist()
-            print("Lexicon loaded successfully.")
         except Exception as e:
             raise Exception(f"An error occurred while loading lexicon: {e}")
 
@@ -61,8 +60,6 @@ class AuditTool:
         self.metadata_df = df
         self.columns = self.metadata_df.columns.to_list()
         self.id_col = id_col
-        print("Metadata loaded successfully.")
-
 
     def select_columns(self, columns):
         """Select columns from the metadata for matching.
@@ -146,9 +143,8 @@ class AuditTool:
         combined_dfs = []
 
         for category, grp in lexicon_df.groupby(by="category", sort=False):
-            print(f"Processing term category: {category}")
+            print(f"\nProcessing term category: {category}")
             for _, (term, _, plural) in tqdm(grp.iterrows(), total=len(grp)):
-                # print(f"Processing {category} term {i + 1 - cumsum.loc[category]} of {count.loc[category]}")
                 term_col_dfs = []
                 if plural:
                     bounded_term = re.compile(r"(?<=\b)" + f"({term}s?)" + r"(?=\b)", flags=re.IGNORECASE)  # make term a group for .split()
@@ -188,6 +184,5 @@ class AuditTool:
             self.matches_df.to_csv(output_file, index=False, encoding="utf8")
             output_file = str(output_file)
             self.matches_df.to_excel(output_file.replace(".csv", ".xlsx"), index=False)
-            print(f"Results saved to {output_file}")
         except Exception as e:
-            print(f"An error occurred while saving results: {e}")
+            raise Exception(f"An error occurred while saving results: {e}")
