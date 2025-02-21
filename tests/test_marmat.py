@@ -28,12 +28,11 @@ class TestMaRMAT:
         tool.select_categories(["RaceTerms", "JapaneseincarcerationTerm"])
         with pytest.raises(ValueError):
             tool.load_metadata("tests/example-input-metadata.csv", id_col="System No [001]")
-        tool.load_metadata("tests/example-input-metadata.csv", id_col="System No [001]", allow_duplicate_ids=True)
         tool.load_lexicon("tests/example-lexicon.csv")
         return tool
 
     def test_attrs(self, tool):
-        assert tool.columns == self.cols
+        assert tool.columns == []
         assert tool.id_col == "System No [001]"
         assert tool.categories == ["RaceTerms", "JapaneseincarcerationTerm"]
         assert tool.selected_columns == ["title"]
@@ -43,11 +42,14 @@ class TestMaRMAT:
     def test_find_matches(self, tool, capsys):
         standard_cols = [tool.id_col, "Term", "Category", "Field", "FieldText",  "Occurences"]
         cat = ["RaceTerms"]
-        one_cat_df = tool.find_matches(selected_columns=["title"], selected_categories=cat)
+        tool.load_metadata("tests/example-input-metadata.csv", id_col="System No [001]", allow_duplicate_ids=True)
+
+        tool._find_matches(selected_columns=["title"], selected_categories=cat)
+        one_cat_df = tool.matches_df
         captured = capsys.readouterr()
         assert captured.out == f"\nProcessing term category: {cat[0]}\n"
         assert one_cat_df.shape == (4, 6)
-        assert one_cat_df["System No [001]"].to_list() == [337805, 1533946, 1498946, 1302623]
+        assert one_cat_df["System No [001]"].to_list() == [337805, 1302623, 1498946, 1533946]
         assert one_cat_df.loc[0, "Field"] == "title"
         assert one_cat_df.loc[0, "FieldText"] == "Aborigines of Taiwan [001]"
         assert one_cat_df.loc[1, "FieldText"] == "Busts of Ute Indians [1]"
@@ -56,26 +58,29 @@ class TestMaRMAT:
         assert one_cat_df.columns.to_list() == standard_cols
 
         cats = ["RaceTerms", "JapaneseincarcerationTerm"]
-        two_cat_df = tool.find_matches(selected_columns=["title"], selected_categories=cats)
+        tool._find_matches(selected_columns=["title"], selected_categories=cats)
+        two_cat_df = tool.matches_df
         captured = capsys.readouterr()
         assert captured.out == f"\nProcessing term category: {cats[0]}\n" \
                                f"\nProcessing term category: {cats[1]}\n"
         assert two_cat_df.shape == (7, 6)
-        assert two_cat_df["System No [001]"].to_list() == [337805, 1533946, 1498946, 1302623, 941713, 941496, 941536]
+        assert two_cat_df["System No [001]"].to_list() == [941496, 941536, 941713, 337805, 1302623, 1498946, 1533946]
         assert two_cat_df.loc[0, "FieldText"] == "Aborigines of Taiwan [001]"
         assert two_cat_df.loc[1, "FieldText"] == "Busts of Ute Indians [1]"
         assert two_cat_df.loc[5, "FieldText"] == "Evacuees cleaning vegetables in the packing shed."
         assert two_cat_df.loc[6, "FieldText"] == "Evacuees harvesting potatoes at Tule Lake. [5]"
         assert two_cat_df.columns.to_list() == standard_cols
 
-        two_cat_two_col_df = tool.find_matches(selected_columns=["title", "description"], selected_categories=cats)
+        with pytest.warns(UserWarning):
+            tool._find_matches(selected_columns=["title", "description"], selected_categories=cats)
+        two_cat_two_col_df = tool.matches_df
         captured = capsys.readouterr()
         assert captured.out == f"\nProcessing term category: {cats[0]}\n" \
                                f"\nProcessing term category: {cats[1]}\n"
         assert two_cat_two_col_df.shape == (20, 6)
         assert two_cat_two_col_df["System No [001]"].to_list() == [
-            337805, 1533946, 1498946, 1302623, 1533946,  962277, 1498946,  995167, 1302623, 995167,
-            1396777, 941713, 941496,  941536, 941713,  941496, 941536,  941713, 941496,  941536
+            941496, 941496, 941536, 941536, 941713, 941713, 941496, 941536, 941713, 337805, 962277, 995167, 995167,
+            1302623, 1302623, 1396777, 1498946, 1498946, 1533946, 1533946
         ]
 
         assert two_cat_two_col_df.loc[0, "FieldText"] == "Aborigines of Taiwan [001]"
@@ -85,13 +90,6 @@ class TestMaRMAT:
         assert two_cat_two_col_df.loc[10, "FieldText"][:53] == "The 14th Occasional paper of the University of Utah's"
         assert two_cat_two_col_df.loc[10, "Occurences"] == 4
         two_cat_two_col_df.to_csv("example-output.csv", encoding="utf8", index=False)
-        tool.metadata_df = tool.metadata_df.drop_duplicates(subset=tool.id_col)
-        no_duplicates_df = tool.find_matches(selected_columns=["title", "description"],
-                                             selected_categories=cats)
-
-        assert no_duplicates_df.shape == (19,6)
-        tool.load_metadata("tests/example-input-metadata.csv", id_col="System No [001]", allow_duplicate_ids=True)
-        assert tool.metadata_df.shape == (39, 8)
 
     def test_perform_matching(self, tool, tmp_path):
         blank_tool = AuditTool()

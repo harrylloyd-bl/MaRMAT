@@ -6,7 +6,7 @@ import pandas as pd
 from tqdm import tqdm
 
 
-def default_str(self):
+def default_str():
     return str
 
 
@@ -22,10 +22,10 @@ class AuditTool:
         self.selected_columns = []  # List of columns selected for matching
         self.selected_categories = []  # List of categories selected for matching
         self.id_col = None  # Identifier column used to uniquely identify rows
-        self.export_cols = []
-        self.matches_df = None
+        self.export_cols = []  # Cols to export
+        self.matches_df = None  # Matched df
 
-    def load_lexicon(self, file_path):
+    def load_lexicon(self, file_path: os.PathLike | str) -> None:
         """Load the lexicon file.
 
         Parameters:
@@ -40,7 +40,7 @@ class AuditTool:
         except Exception as e:
             raise Exception(f"An error occurred while loading lexicon: {e}")
 
-    def load_metadata(self, file_path, id_col, allow_duplicate_ids=False):
+    def load_metadata(self, file_path: os.PathLike | str, id_col: str, allow_duplicate_ids: bool = False) -> None:
         """Load the metadata file.
 
         Parameters:
@@ -63,7 +63,7 @@ class AuditTool:
         self.columns = self.metadata_df.columns.to_list()
         self.id_col = id_col
 
-    def select_columns(self, columns):
+    def select_columns(self, columns: list[str]) -> None:
         """Select columns from the metadata for matching.
 
         Parameters:
@@ -72,7 +72,7 @@ class AuditTool:
         """
         self.selected_columns = columns
 
-    def select_identifier_column(self, column):
+    def select_identifier_column(self, column: str) -> None:
         """Select the identifier column used for uniquely identifying rows.
 
         Parameters:
@@ -81,7 +81,7 @@ class AuditTool:
         """
         self.id_col = column
 
-    def select_categories(self, categories):
+    def select_categories(self, categories: list[str]) -> None:
         """Select categories from the lexicon for matching.
 
         Parameters:
@@ -90,7 +90,7 @@ class AuditTool:
         """
         self.selected_categories = categories
 
-    def select_export_cols(self, export_cols):
+    def select_export_cols(self, export_cols: list[str]) -> None:
         """Select categories from the lexicon for matching.
 
         Parameters:
@@ -99,12 +99,10 @@ class AuditTool:
         """
         self.export_cols = export_cols
 
-    def perform_matching(self):
-        """Perform matching between selected columns and categories and save results to a CSV file.
-
-        Parameters:
-        output_file (str): Path to the output CSV file to save matching results.
-
+    def perform_matching(self) -> None:
+        """
+        Check all required inputs for matching have been added to class
+        Perform matching between selected columns and categories.
         """
         if self.lexicon_df is None or self.metadata_df is None:
             raise ValueError("Please load lexicon and metadata files first.")
@@ -121,24 +119,22 @@ class AuditTool:
         if self.id_col in self.export_cols:  # The ID col will always be leftmost in export anyway
             self.export_cols.remove(self.id_col)
 
-        self.matches_df = self.find_matches(self.selected_columns, self.selected_categories)
-        self.matches_df.sort_values(by=["Category", "Term", self.id_col], inplace=True)
-        duplicate_check = self.matches_df.groupby(by=["Category", "Term", "Field", self.id_col])["Occurences"].count()
-        if duplicate_check.max() > 1:
-            n = duplicate_check.sum() - duplicate_check.shape[0]
-            warnings.warn(f"{n} duplicate rows in output, check uniqueness of ID field in input.")
+        self._find_matches(self.selected_columns, self.selected_categories)
         return None
 
-    def find_matches(self, selected_columns, selected_categories):
+    def _find_matches(self, selected_columns: list[str], selected_categories: list[str], ignore_case: bool = True) -> None:
         """Find matches between metadata and lexicon based on selected columns and categories.
+        Ignores case in lexicon terms by default
+        Searches for plurals of terms as indicated in lexicon 'plural' column.
+        Assign matched dataframe to matches_df class attribute
 
         Parameters:
         selected_columns (list of str): List of column names from metadata for matching.
         selected_categories (list of str): List of category names from the lexicon for matching.
+        ignore_case (bool): Whether to ignore case in search terms
 
         Returns:
         list of tuple: List of tuples containing matched results (Identifier, Term, Category, Column).
-
         """
         lexicon_df = self.lexicon_df[self.lexicon_df['category'].isin(selected_categories)].copy()
         lexicon_df.sort_values(by="category",  # sort lexicon to same order as selected_categories
@@ -182,14 +178,21 @@ class AuditTool:
                 if term_col_dfs:
                     combined_dfs.append(pd.concat(term_col_dfs, axis=0))
 
-        matches_df = pd.concat(combined_dfs, axis=0).reset_index(drop=True)
-        return matches_df
+        matches_df = pd.concat(combined_dfs, axis=0).reset_index(drop=True).sort_values(by=["Category", "Term", self.id_col])
 
-    def export_matches(self, output_file):
+        duplicate_check = matches_df.groupby(by=["Category", "Term", "Field", self.id_col])["Occurences"].count()
+        if duplicate_check.max() > 1:
+            n = duplicate_check.sum() - duplicate_check.shape[0]
+            warnings.warn(f"{n} duplicate rows in output, check uniqueness of ID field in input.")
+
+        self.matches_df = matches_df
+        return None
+
+    def export_matches(self, output_file: os.PathLike | str) -> None:
         """
         Write results to CSV
         Parameters:
-        output_file (str): Path to the output CSV file to save matching results.
+        output_file (os.Pathlike): Path to the output CSV file to save matching results.
         """
         if not os.path.exists(os.path.dirname(output_file)):
             os.mkdir(os.path.dirname(output_file))
