@@ -99,13 +99,17 @@ class AuditTool:
         """
         self.export_cols = export_cols
 
-    def perform_matching(self) -> None:
+    def validate_inputs(self) -> None:
         """
         Check all required inputs for matching have been added to class
         Perform matching between selected columns and categories.
         """
         if self.lexicon_df is None or self.metadata_df is None:
             raise ValueError("Please load lexicon and metadata files first.")
+        if not self.selected_columns:
+            raise ValueError("No columns selected to match in metadata, have you called select_columns()?")
+        if not self.selected_categories:
+            raise ValueError("No lexicon categories selected to match in metadata, have you called select_categories()?")
         elif set(self.selected_categories) - set(self.categories):
             missing_cats = set(self.selected_categories) - set(self.categories)
             raise ValueError(f"{missing_cats} not in lexicon categories")
@@ -119,26 +123,30 @@ class AuditTool:
         if self.id_col in self.export_cols:  # The ID col will always be leftmost in export anyway
             self.export_cols.remove(self.id_col)
 
-        self._find_matches(self.selected_columns, self.selected_categories)
         return None
 
-    def _find_matches(self, selected_columns: list[str], selected_categories: list[str], ignore_case: bool = True) -> None:
+    def audit_metadata(self, ignore_case: bool = True) -> None:
         """Find matches between metadata and lexicon based on selected columns and categories.
         Ignores case in lexicon terms by default
         Searches for plurals of terms as indicated in lexicon 'plural' column.
         Assign matched dataframe to matches_df class attribute
 
         Parameters:
-        selected_columns (list of str): List of column names from metadata for matching.
-        selected_categories (list of str): List of category names from the lexicon for matching.
         ignore_case (bool): Whether to ignore case in search terms
 
         Returns:
         list of tuple: List of tuples containing matched results (Identifier, Term, Category, Column).
         """
-        lexicon_df = self.lexicon_df[self.lexicon_df['category'].isin(selected_categories)].copy()
+        self.validate_inputs()
+
+        if ignore_case:
+            flags = re.IGNORECASE
+        else:
+            flags = None
+
+        lexicon_df = self.lexicon_df[self.lexicon_df['category'].isin(self.selected_categories)].copy()
         lexicon_df.sort_values(by="category",  # sort lexicon to same order as selected_categories
-                               key=lambda x: x.map({k: i for i, k in enumerate(selected_categories)}),
+                               key=lambda x: x.map({k: i for i, k in enumerate(self.selected_categories)}),
                                inplace=True)
 
         combined_dfs = []
@@ -148,11 +156,11 @@ class AuditTool:
             for _, (term, _, plural) in tqdm(grp.iterrows(), total=len(grp)):
                 term_col_dfs = []
                 if plural:
-                    bounded_term = re.compile(r"(?<=\b)" + f"({term}s?)" + r"(?=\b)", flags=re.IGNORECASE)  # make term a group for .split()
+                    bounded_term = re.compile(r"(?<=\b)" + f"({term}s?)" + r"(?=\b)", flags=flags)  # make term a group for .split()
                 else:
-                    bounded_term = re.compile(r"(?<=\b)" + f"({term})" + r"(?=\b)", flags=re.IGNORECASE)  # make term a group for .split()
+                    bounded_term = re.compile(r"(?<=\b)" + f"({term})" + r"(?=\b)", flags=flags)  # make term a group for .split()
 
-                for col in selected_columns:
+                for col in self.selected_columns:
                     raw_matches = self.metadata_df[self.metadata_df[col].str.contains(term, regex=False, na=False, case=False)]
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")

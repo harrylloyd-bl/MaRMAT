@@ -41,7 +41,7 @@ if __name__ == "__main__":
 
             print("Matching and exporting results")
             output_file = os.path.join(PROCESSED_PATH, f"{f}_matches.csv")  # Input the file path where you want to save your matches here.
-            tool.perform_matching()
+            tool.audit_metadata()
             tool.export_matches(output_file)
         print("\nAleph files audit complete")
 
@@ -58,7 +58,7 @@ if __name__ == "__main__":
             tool.select_export_cols(tool.columns)
             print("Matching and exporting results")
             output_file = os.path.join(PROCESSED_PATH, f"{f}_matches.csv")  # Input the file path where you want to save your matches here.
-            tool.perform_matching()
+            tool.audit_metadata()
             tool.export_matches(output_file)
 
         print("IAMS files audit complete")

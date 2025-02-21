@@ -41,10 +41,12 @@ class TestMaRMAT:
 
     def test_find_matches(self, tool, capsys):
         standard_cols = [tool.id_col, "Term", "Category", "Field", "FieldText",  "Occurences"]
-        cat = ["RaceTerms"]
-        tool.load_metadata("tests/example-input-metadata.csv", id_col="System No [001]", allow_duplicate_ids=True)
 
-        tool._find_matches(selected_columns=["title"], selected_categories=cat)
+        tool.load_metadata("tests/example-input-metadata.csv", id_col="System No [001]", allow_duplicate_ids=True)
+        tool.select_columns(["title"])
+        cat = ["RaceTerms"]
+        tool.select_categories(cat)
+        tool.audit_metadata()
         one_cat_df = tool.matches_df
         captured = capsys.readouterr()
         assert captured.out == f"\nProcessing term category: {cat[0]}\n"
@@ -57,8 +59,10 @@ class TestMaRMAT:
         assert one_cat_df.loc[3, "FieldText"] == "Basalt-capped mesa on Dolores (Triassic), 6± miles south of Beddehoche (Indian Wells), Ariz., 1909 (photo G-67)"
         assert one_cat_df.columns.to_list() == standard_cols
 
+        tool.select_columns(["title"])
         cats = ["RaceTerms", "JapaneseincarcerationTerm"]
-        tool._find_matches(selected_columns=["title"], selected_categories=cats)
+        tool.select_categories(cats)
+        tool.audit_metadata()
         two_cat_df = tool.matches_df
         captured = capsys.readouterr()
         assert captured.out == f"\nProcessing term category: {cats[0]}\n" \
@@ -72,7 +76,10 @@ class TestMaRMAT:
         assert two_cat_df.columns.to_list() == standard_cols
 
         with pytest.warns(UserWarning):
-            tool._find_matches(selected_columns=["title", "description"], selected_categories=cats)
+            tool.select_columns(["title", "description"])
+            cats = ["RaceTerms", "JapaneseincarcerationTerm"]
+            tool.select_categories(cats)
+            tool.audit_metadata()
         two_cat_two_col_df = tool.matches_df
         captured = capsys.readouterr()
         assert captured.out == f"\nProcessing term category: {cats[0]}\n" \
@@ -94,15 +101,15 @@ class TestMaRMAT:
     def test_perform_matching(self, tool, tmp_path):
         blank_tool = AuditTool()
         with pytest.raises(ValueError):  # neither metadata nor lexicon
-            blank_tool.perform_matching()
+            blank_tool.audit_metadata()
 
         with pytest.raises(ValueError):  # lexicon but no metadata
             blank_tool.load_lexicon("tests/example-lexicon.csv")
-            blank_tool.perform_matching()
+            blank_tool.audit_metadata()
 
         tool.select_columns(["title", "description"])
         with pytest.warns(UserWarning):
-            tool.perform_matching()
+            tool.audit_metadata()
         tool.export_matches(tmp_path / "test_output.csv")
         check_df = read_csv(tmp_path / "test_output.csv")
         assert check_df.shape == (20, 6)
