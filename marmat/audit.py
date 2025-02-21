@@ -1,8 +1,13 @@
 from collections import defaultdict
+import os
 import re
 import warnings
 import pandas as pd
 from tqdm import tqdm
+
+
+def default_str(self):
+    return str
 
 
 class AuditTool:
@@ -35,9 +40,6 @@ class AuditTool:
         except Exception as e:
             raise Exception(f"An error occurred while loading lexicon: {e}")
 
-    def default_str(self):
-        return str
-
     def load_metadata(self, file_path, id_col, allow_duplicate_ids=False):
         """Load the metadata file.
 
@@ -46,7 +48,7 @@ class AuditTool:
 
         """
         try:
-            dtypes = defaultdict(self.default_str)
+            dtypes = defaultdict(default_str)
             dtypes["System No [001]"] = pd.Int64Dtype()
             df = pd.read_csv(file_path, encoding='utf8', dtype=dtypes)
         except Exception as e:
@@ -116,6 +118,9 @@ class AuditTool:
         if not (self.metadata_df is not None and self.lexicon_df is not None):
             raise ValueError("Please load lexicon and metadata files first.")
 
+        if self.id_col in self.export_cols:  # The ID col will always be leftmost in export anyway
+            self.export_cols.remove(self.id_col)
+
         self.matches_df = self.find_matches(self.selected_columns, self.selected_categories)
         self.matches_df.sort_values(by=["Category", "Term", self.id_col], inplace=True)
         duplicate_check = self.matches_df.groupby(by=["Category", "Term", "Field", self.id_col])["Occurences"].count()
@@ -157,16 +162,22 @@ class AuditTool:
                         warnings.simplefilter("ignore")
                         matches = raw_matches[raw_matches[col].str.contains(bounded_term, regex=True, na=False)].copy()
                     if len(matches) > 0:
-                        matches.rename(columns={col: "Context"}, inplace=True)
+                        matches.rename(columns={col: "FieldText"}, inplace=True)
 
                         # add all other cols
                         matches["Term"] = term
                         matches["Category"] = category
                         matches["Field"] = col
-                        matches["Occurences"] = matches["Context"].str.count(bounded_term)
+                        matches["Occurences"] = matches["FieldText"].str.count(bounded_term)
 
-                        standard_cols = [self.id_col, 'Term', 'Category', 'Context', 'Field', 'Occurences']
-                        term_col_dfs.append(matches.loc[:, standard_cols + self.export_cols])
+                        standard_cols = [self.id_col, 'Term', 'Category', 'Field', 'FieldText',  'Occurences']
+                        clean_export_cols = standard_cols + self.export_cols
+                        if col in clean_export_cols:
+                            clean_export_cols.remove(col)
+                        if not set(clean_export_cols) <= set(matches.columns):
+                            missing_cols = set(clean_export_cols) - set(matches.columns)
+                            raise ValueError(f"The following export columns are not in the input: {missing_cols}")
+                        term_col_dfs.append(matches.loc[:, clean_export_cols])
 
                 if term_col_dfs:
                     combined_dfs.append(pd.concat(term_col_dfs, axis=0))

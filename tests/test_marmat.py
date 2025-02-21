@@ -41,47 +41,50 @@ class TestMaRMAT:
         assert tool.lexicon_df.dtypes["plural"] == bool
 
     def test_find_matches(self, tool, capsys):
-        standard_cols = [tool.id_col, "Term", "Category", "Context", "Field", "Occurences"]
+        standard_cols = [tool.id_col, "Term", "Category", "Field", "FieldText",  "Occurences"]
         cat = ["RaceTerms"]
         one_cat_df = tool.find_matches(selected_columns=["title"], selected_categories=cat)
         captured = capsys.readouterr()
-        assert captured.out == f"Processing term category: {cat[0]}\n"
+        assert captured.out == f"\nProcessing term category: {cat[0]}\n"
         assert one_cat_df.shape == (4, 6)
         assert one_cat_df["System No [001]"].to_list() == [337805, 1533946, 1498946, 1302623]
         assert one_cat_df.loc[0, "Field"] == "title"
-        assert one_cat_df.loc[0, "Context"] == "Aborigines of Taiwan [001]"
-        assert one_cat_df.loc[1, "Context"] == "Busts of Ute Indians [1]"
-        assert one_cat_df.loc[2, "Context"] == "Spanish at Indian pueblo"
-        assert one_cat_df.loc[3, "Context"] == "Basalt-capped mesa on Dolores (Triassic), 6± miles south of Beddehoche (Indian Wells), Ariz., 1909 (photo G-67)"
+        assert one_cat_df.loc[0, "FieldText"] == "Aborigines of Taiwan [001]"
+        assert one_cat_df.loc[1, "FieldText"] == "Busts of Ute Indians [1]"
+        assert one_cat_df.loc[2, "FieldText"] == "Spanish at Indian pueblo"
+        assert one_cat_df.loc[3, "FieldText"] == "Basalt-capped mesa on Dolores (Triassic), 6± miles south of Beddehoche (Indian Wells), Ariz., 1909 (photo G-67)"
         assert one_cat_df.columns.to_list() == standard_cols
 
         cats = ["RaceTerms", "JapaneseincarcerationTerm"]
         two_cat_df = tool.find_matches(selected_columns=["title"], selected_categories=cats)
         captured = capsys.readouterr()
-        assert captured.out == f"Processing term category: {cats[0]}\n" \
-                               f"Processing term category: {cats[1]}\n"
+        assert captured.out == f"\nProcessing term category: {cats[0]}\n" \
+                               f"\nProcessing term category: {cats[1]}\n"
         assert two_cat_df.shape == (7, 6)
         assert two_cat_df["System No [001]"].to_list() == [337805, 1533946, 1498946, 1302623, 941713, 941496, 941536]
-        assert two_cat_df.loc[0, "Context"] == "Aborigines of Taiwan [001]"
-        assert two_cat_df.loc[1, "Context"] == "Busts of Ute Indians [1]"
-        assert two_cat_df.loc[5, "Context"] == "Evacuees cleaning vegetables in the packing shed."
-        assert two_cat_df.loc[6, "Context"] == "Evacuees harvesting potatoes at Tule Lake. [5]"
+        assert two_cat_df.loc[0, "FieldText"] == "Aborigines of Taiwan [001]"
+        assert two_cat_df.loc[1, "FieldText"] == "Busts of Ute Indians [1]"
+        assert two_cat_df.loc[5, "FieldText"] == "Evacuees cleaning vegetables in the packing shed."
+        assert two_cat_df.loc[6, "FieldText"] == "Evacuees harvesting potatoes at Tule Lake. [5]"
         assert two_cat_df.columns.to_list() == standard_cols
 
         two_cat_two_col_df = tool.find_matches(selected_columns=["title", "description"], selected_categories=cats)
         captured = capsys.readouterr()
-        assert captured.out == f"Processing term category: {cats[0]}\n" \
-                               f"Processing term category: {cats[1]}\n"
+        assert captured.out == f"\nProcessing term category: {cats[0]}\n" \
+                               f"\nProcessing term category: {cats[1]}\n"
         assert two_cat_two_col_df.shape == (20, 6)
-        assert two_cat_two_col_df["System No [001]"].to_list() == [337805, 1533946, 1498946, 1302623, 1533946,  962277, 1498946,  995167,
-                                                      1302623, 995167, 1396777,  941713,  941496,  941536, 941713,  941496,
-                                                      941536,  941713, 941496,  941536]
+        assert two_cat_two_col_df["System No [001]"].to_list() == [
+            337805, 1533946, 1498946, 1302623, 1533946,  962277, 1498946,  995167, 1302623, 995167,
+            1396777, 941713, 941496,  941536, 941713,  941496, 941536,  941713, 941496,  941536
+        ]
 
-        assert two_cat_two_col_df.loc[0, "Context"] == "Aborigines of Taiwan [001]"
-        assert two_cat_two_col_df.loc[5, "Context"] == "Photo taken at a court hearing or de-briefing following the American Indian Movement takeover at Wounded Knee, South Dakota, in 1973."
-        assert two_cat_two_col_df.loc[16, "Context"] == "Photo of evacuees harvesting potatoes at the Tule Lake Relocation Center in California during World War II"
+        assert two_cat_two_col_df.loc[0, "FieldText"] == "Aborigines of Taiwan [001]"
+        assert two_cat_two_col_df.loc[5, "FieldText"] == "Photo taken at a court hearing or de-briefing following the American Indian Movement takeover at Wounded Knee, South Dakota, in 1973."
+        assert two_cat_two_col_df.loc[16, "FieldText"] == "Photo of evacuees harvesting potatoes at the Tule Lake Relocation Center in California during World War II"
         assert two_cat_two_col_df.columns.to_list() == standard_cols
-
+        assert two_cat_two_col_df.loc[10, "FieldText"][:53] == "The 14th Occasional paper of the University of Utah's"
+        assert two_cat_two_col_df.loc[10, "Occurences"] == 4
+        two_cat_two_col_df.to_csv("example-output.csv", encoding="utf8", index=False)
         tool.metadata_df = tool.metadata_df.drop_duplicates(subset=tool.id_col)
         no_duplicates_df = tool.find_matches(selected_columns=["title", "description"],
                                              selected_categories=cats)
