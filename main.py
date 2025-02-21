@@ -1,7 +1,7 @@
 import os
 from marmat.audit import AuditTool
 
-LEXICON_PATH = "data\\external\\bl_lexicon_plural.csv"
+LEXICON_PATH = "data\\external\\bl_lexicon_v1.csv"
 INTERIM_PATH = "data\\interim\\"
 PROCESSED_PATH = "data\\processed\\idcop\\"
 
@@ -21,22 +21,14 @@ if __name__ == "__main__":
             "Visual Arts_v2", "Western Manuscripts_v2"
         ]
     }
-
-    print("Initialize")
-    tool = AuditTool()
-
-    print("Loading lexicon and metadata files")
-    tool.load_lexicon(LEXICON_PATH)  # Input the path to your lexicon CSV file.
-
     # Aleph
     if ALEPH:
-        print(f"Setting metadata, ID columns, and lexicon categories")
-        tool.select_columns(["Title [245]"])  # Input the name(s) of the metadata column(s) you want to analyze.
-        tool.select_categories(["Race", "Enslavement"])
+        print(f"Loading lexicon and metadata files, setting metadata, ID columns, and lexicon categories")
+        tool = AuditTool(lexicon=LEXICON_PATH, lexicon_categories=["Race", "Enslavement"])
 
         for f in record_files["aleph"][:1]:
             print(f"\nLoading {f}")
-            tool.load_metadata(os.path.join(INTERIM_PATH, f"{f}.csv"), id_col="System No [001]")  # Input the path to your metadata CSV file
+            tool.load_metadata(os.path.join(INTERIM_PATH, f"{f}.csv"), id_col="System No [001]", audit_columns=["Title [245]"])  # Input the path to your metadata CSV file
             tool.select_export_cols(tool.columns)
 
             print("Matching and exporting results")
@@ -47,14 +39,12 @@ if __name__ == "__main__":
 
     #IAMS
     if IAMS:
-        print(f"Setting metadata, ID columns, and lexicon categories")
-        tool.select_columns(["Title", "Scope and content"])  # Input the name(s) of the metadata column(s) you want to analyze.
-        tool.select_categories(["Race", "Enslavement", "Aggrandizement"])
+        print(f"Loading lexicon and metadata files, setting metadata, ID columns, and lexicon categories")
+        tool = AuditTool(lexicon=LEXICON_PATH, lexicon_categories=["Race", "Enslavement", "Qatar"])
 
         for f in record_files["iams"]:
-
             print(f"\nLoading {f}")
-            tool.load_metadata(os.path.join(INTERIM_PATH, f"{f}.csv"), id_col="Record ID")  # Input the path to your metadata CSV file
+            tool.load_metadata(os.path.join(INTERIM_PATH, f"{f}.csv"), id_col="Record ID", audit_columns=["Title", "Scope and content"])  # Input the path to your metadata CSV file
             tool.select_export_cols(tool.columns)
             print("Matching and exporting results")
             output_file = os.path.join(PROCESSED_PATH, f"{f}_matches.csv")  # Input the file path where you want to save your matches here.

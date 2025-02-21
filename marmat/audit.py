@@ -11,36 +11,27 @@ def default_str():
 
 
 class AuditTool:
-    """A tool for assessing metadata and identifying matches based on a provided lexicon."""
+    """A tool for assessing metadata and identifying matches based on a provided lexicon.
+    Constructor allows to specify lexicon path, lexicon categories, and audit columns in initialisation
+    Can also specify these after construction using
+    """
 
-    def __init__(self):
-        """Initialize the assessment tool."""
-        self.lexicon_df = None
+    def __init__(self, lexicon: os.PathLike | str | None = None, lexicon_categories: list[str] = None):
+        self.lexicon = self.load_lexicon(lexicon)
+        self.lexicon_categories = lexicon_categories  # List of lexicon categories selected for matching
         self.metadata_df = None
         self.columns = []  # List of all available columns in the metadata
-        self.categories = []  # List of all available categories in the lexicon
-        self.selected_columns = []  # List of columns selected for matching
-        self.selected_categories = []  # List of categories selected for matching
+        self.selected_columns = []  # List of metadata columns selected for matching
         self.id_col = None  # Identifier column used to uniquely identify rows
         self.export_cols = []  # Cols to export
         self.matches_df = None  # Matched df
 
-    def load_lexicon(self, file_path: os.PathLike | str) -> None:
-        """Load the lexicon file.
-
-        Parameters:
-        file_path (str): Path to the lexicon CSV file.
-
-        """
-        try:
-            self.lexicon_df = pd.read_csv(file_path, encoding='utf8')
-            if "plural" in self.lexicon_df.columns and self.lexicon_df.dtypes["plural"] != bool:
-                raise TypeError(f"Plural dtype is {self.lexicon_df.dtypes['plural']} not bool")
-            self.categories = self.lexicon_df["category"].unique().tolist()
-        except Exception as e:
-            raise Exception(f"An error occurred while loading lexicon: {e}")
-
-    def load_metadata(self, file_path: os.PathLike | str, id_col: str, allow_duplicate_ids: bool = False) -> None:
+    def load_metadata(self,
+                      file_path: os.PathLike | str,
+                      id_col: str,
+                      audit_columns: list[str],
+                      allow_duplicate_ids: bool = False
+                      ) -> None:
         """Load the metadata file.
 
         Parameters:
@@ -59,9 +50,32 @@ class AuditTool:
                 f"{id_col} in Metadata is not unique. Make unique or set allow_duplicate_ids=True. "
                 f"This will lead to duplicate results in ouput.")
 
+        if set(audit_columns) - set(df.columns.to_list()):
+            raise KeyError(f"{audit_columns} not in metadata columns")
+
         self.metadata_df = df
         self.columns = self.metadata_df.columns.to_list()
+        self.selected_columns = audit_columns
         self.id_col = id_col
+
+    def load_lexicon(self, file_path: os.PathLike | str | None) -> None:
+        """Load the lexicon file.
+
+        Parameters:
+        file_path (str): Path to the lexicon CSV file.
+
+        """
+        if file_path is None:
+            return None
+        try:
+            lexicon = pd.read_csv(file_path, encoding='utf8')
+            if "plural" in lexicon.columns and lexicon.dtypes["plural"] != bool:
+                raise TypeError(f"Plural dtype is {lexicon.dtypes['plural']} not bool")
+            self.categories = lexicon["category"].unique().tolist()
+            return lexicon
+        except Exception as e:
+            self.categories = None
+            raise Exception(f"An error occurred while loading lexicon: {e}")
 
     def select_columns(self, columns: list[str]) -> None:
         """Select columns from the metadata for matching.
@@ -88,7 +102,7 @@ class AuditTool:
         categories (list of str): List of category names in the lexicon.
 
         """
-        self.selected_categories = categories
+        self.lexicon_categories = categories
 
     def select_export_cols(self, export_cols: list[str]) -> None:
         """Select categories from the lexicon for matching.
@@ -104,20 +118,20 @@ class AuditTool:
         Check all required inputs for matching have been added to class
         Perform matching between selected columns and categories.
         """
-        if self.lexicon_df is None or self.metadata_df is None:
+        if self.lexicon is None or self.metadata_df is None:
             raise ValueError("Please load lexicon and metadata files first.")
         if not self.selected_columns:
             raise ValueError("No columns selected to match in metadata, have you called select_columns()?")
-        if not self.selected_categories:
+        if not self.lexicon_categories:
             raise ValueError("No lexicon categories selected to match in metadata, have you called select_categories()?")
-        elif set(self.selected_categories) - set(self.categories):
-            missing_cats = set(self.selected_categories) - set(self.categories)
+        elif set(self.lexicon_categories) - set(self.categories):
+            missing_cats = set(self.lexicon_categories) - set(self.categories)
             raise ValueError(f"{missing_cats} not in lexicon categories")
         elif set(self.selected_columns) - set(self.columns):
             missing_cols = set(self.selected_columns) - set(self.columns)
             raise ValueError(f"{missing_cols} not in metadata columns")
 
-        if not (self.metadata_df is not None and self.lexicon_df is not None):
+        if not (self.metadata_df is not None and self.lexicon is not None):
             raise ValueError("Please load lexicon and metadata files first.")
 
         if self.id_col in self.export_cols:  # The ID col will always be leftmost in export anyway
@@ -144,9 +158,9 @@ class AuditTool:
         else:
             flags = None
 
-        lexicon_df = self.lexicon_df[self.lexicon_df['category'].isin(self.selected_categories)].copy()
+        lexicon_df = self.lexicon[self.lexicon['category'].isin(self.lexicon_categories)].copy()
         lexicon_df.sort_values(by="category",  # sort lexicon to same order as selected_categories
-                               key=lambda x: x.map({k: i for i, k in enumerate(self.selected_categories)}),
+                               key=lambda x: x.map({k: i for i, k in enumerate(self.lexicon_categories)}),
                                inplace=True)
 
         combined_dfs = []

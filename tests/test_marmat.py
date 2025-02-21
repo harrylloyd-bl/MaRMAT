@@ -5,12 +5,11 @@ from marmat.audit import AuditTool
 
 def test_init_attrs():
     tool = AuditTool()
-    assert tool.lexicon_df is None
+    assert tool.lexicon is None
     assert tool.metadata_df is None
     assert tool.columns == []
-    assert tool.categories == []
     assert tool.selected_columns == []
-    assert tool.selected_categories == []
+    assert tool.lexicon_categories is None
     assert tool.id_col is None
 
 
@@ -22,28 +21,23 @@ class TestMaRMAT:
 
     @pytest.fixture(scope="class")
     def tool(self):
-        tool = AuditTool()
-        tool.select_columns(["title"])  # Input the name(s) of the metadata column(s) you want to analyze.
+        tool = AuditTool(lexicon="tests/example-lexicon.csv", lexicon_categories=["RaceTerms", "JapaneseincarcerationTerm"])
         tool.select_identifier_column("System No [001]")
-        tool.select_categories(["RaceTerms", "JapaneseincarcerationTerm"])
         with pytest.raises(ValueError):
-            tool.load_metadata("tests/example-input-metadata.csv", id_col="System No [001]")
-        tool.load_lexicon("tests/example-lexicon.csv")
+            tool.load_metadata("tests/example-input-metadata.csv", id_col="System No [001]", audit_columns=["title"])
         return tool
 
     def test_attrs(self, tool):
         assert tool.columns == []
         assert tool.id_col == "System No [001]"
+        assert tool.selected_columns == []
+        assert tool.lexicon_categories == ["RaceTerms", "JapaneseincarcerationTerm"]
         assert tool.categories == ["RaceTerms", "JapaneseincarcerationTerm"]
-        assert tool.selected_columns == ["title"]
-        assert tool.selected_categories == ["RaceTerms", "JapaneseincarcerationTerm"]
-        assert tool.lexicon_df.dtypes["plural"] == bool
+        assert tool.lexicon.dtypes["plural"] == bool
 
     def test_find_matches(self, tool, capsys):
         standard_cols = [tool.id_col, "Term", "Category", "Field", "FieldText",  "Occurences"]
-
-        tool.load_metadata("tests/example-input-metadata.csv", id_col="System No [001]", allow_duplicate_ids=True)
-        tool.select_columns(["title"])
+        tool.load_metadata("tests/example-input-metadata.csv", id_col="System No [001]", allow_duplicate_ids=True, audit_columns=["title"])
         cat = ["RaceTerms"]
         tool.select_categories(cat)
         tool.audit_metadata()
@@ -59,7 +53,6 @@ class TestMaRMAT:
         assert one_cat_df.loc[3, "FieldText"] == "Basalt-capped mesa on Dolores (Triassic), 6± miles south of Beddehoche (Indian Wells), Ariz., 1909 (photo G-67)"
         assert one_cat_df.columns.to_list() == standard_cols
 
-        tool.select_columns(["title"])
         cats = ["RaceTerms", "JapaneseincarcerationTerm"]
         tool.select_categories(cats)
         tool.audit_metadata()
@@ -77,7 +70,6 @@ class TestMaRMAT:
 
         with pytest.warns(UserWarning):
             tool.select_columns(["title", "description"])
-            cats = ["RaceTerms", "JapaneseincarcerationTerm"]
             tool.select_categories(cats)
             tool.audit_metadata()
         two_cat_two_col_df = tool.matches_df
