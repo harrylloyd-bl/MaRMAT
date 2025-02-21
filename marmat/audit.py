@@ -191,6 +191,8 @@ class AuditTool:
         Parameters:
         output_file (str): Path to the output CSV file to save matching results.
         """
+        if not os.path.exists(os.path.dirname(output_file)):
+            os.mkdir(os.path.dirname(output_file))
         try:
             self.matches_df.to_csv(output_file, index=False, encoding="utf8")
             output_file = str(output_file)
